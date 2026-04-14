@@ -1,0 +1,21 @@
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Python
+**/__pycache__/
+*.pyc
+
+# Local env files
+.env
+.venv
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+
+# Docker artifacts
+docker/*.tar

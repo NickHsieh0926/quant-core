@@ -1,0 +1,33 @@
+name: quant-core
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: quant-postgres
+    environment:
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+      - TZ=Asia/Taipei
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - quant-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: quant-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    environment:
+      - TZ=Asia/Taipei
+    networks:
+      - quant-network
+      
+networks:
+  quant-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
