@@ -11,27 +11,36 @@
             <PatternLayout pattern="${PATTERN}"/>
         </Console>
 
-        <RollingFile name="RollingFile" fileName="${LOG_PATH}/app.log"
-                     filePattern="${LOG_PATH}/java-backend.%d{yyyy-MM-dd}-%i.log.gz">
+        <RollingFile name="File" fileName="${LOG_PATH}/quant-core.log"
+                     filePattern="${LOG_PATH}/quant-core-%d{yyyy-MM-dd}.log.gz">
             <PatternLayout pattern="${PATTERN}"/>
             <Policies>
-                <TimeBasedTriggeringPolicy interval="1"/>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
                 <SizeBasedTriggeringPolicy size="100MB"/>
             </Policies>
             <DefaultRolloverStrategy max="30"/>
         </RollingFile>
+
+        <Async name="AsyncFile" includeLocation="true">
+            <AppenderRef ref="File"/>
+        </Async>
     </Appenders>
 
     <Loggers>
-
-        <Logger name="org.springframework.security" level="DEBUG" additivity="false">
-            <AppenderRef ref="Console"/>
-            <AppenderRef ref="RollingFile"/>
-        </Logger>
-
         <Root level="INFO">
             <AppenderRef ref="Console"/>
-            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="AsyncFile"/>
         </Root>
+
+        <!-- 排查 Security 問題時才開啟，平時移除 -->
+        <!--        <Logger name="org.springframework.security" level="DEBUG" additivity="false">-->
+        <!--            <AppenderRef ref="Console"/>-->
+        <!--            <AppenderRef ref="AsyncFile"/>-->
+        <!--        </Logger>-->
+
+        <Logger name="com.hcy.quant" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="AsyncFile"/>
+        </Logger>
     </Loggers>
 </Configuration>

@@ -1,0 +1,9 @@
+# Metrics（指標）
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'quant-core'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
