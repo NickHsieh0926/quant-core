@@ -22,4 +22,6 @@ jobs:
 
       - name: Build and test
         working-directory: backend/quant-core
-        run: mvn -B verify
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify
