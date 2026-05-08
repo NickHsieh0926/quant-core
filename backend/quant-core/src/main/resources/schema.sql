@@ -81,3 +81,48 @@ CREATE TABLE IF NOT EXISTS BATCH_JOB_EXECUTION_CONTEXT (
 CREATE SEQUENCE IF NOT EXISTS BATCH_STEP_EXECUTION_SEQ MAXVALUE 9223372036854775807 NO CYCLE;
 CREATE SEQUENCE IF NOT EXISTS BATCH_JOB_EXECUTION_SEQ  MAXVALUE 9223372036854775807 NO CYCLE;
 CREATE SEQUENCE IF NOT EXISTS BATCH_JOB_SEQ            MAXVALUE 9223372036854775807 NO CYCLE;
+
+-- OHLCV 歷史 K 線（統計套利軌核心數據）
+CREATE TABLE IF NOT EXISTS ohlcv (
+    id          BIGSERIAL PRIMARY KEY,
+    symbol      VARCHAR(20)    NOT NULL,
+    open_time   BIGINT         NOT NULL,
+    open        DECIMAL(20, 8) NOT NULL,
+    high        DECIMAL(20, 8) NOT NULL,
+    low         DECIMAL(20, 8) NOT NULL,
+    close       DECIMAL(20, 8) NOT NULL,
+    volume      DECIMAL(20, 8) NOT NULL,
+    interval    VARCHAR(10)    NOT NULL,
+    created_at  TIMESTAMP DEFAULT NOW(),
+    UNIQUE (symbol, open_time, interval)
+);
+
+-- 回測績效結果（每次回測 Job 的彙總）
+CREATE TABLE IF NOT EXISTS backtest_result (
+    id              BIGSERIAL PRIMARY KEY,
+    job_id          VARCHAR(50)    NOT NULL UNIQUE,
+    strategy        VARCHAR(50)    NOT NULL,
+    symbol_a        VARCHAR(20)    NOT NULL,
+    symbol_b        VARCHAR(20)    NOT NULL,
+    start_date      DATE           NOT NULL,
+    end_date        DATE           NOT NULL,
+    sharpe_ratio    DECIMAL(10, 4),
+    max_drawdown    DECIMAL(10, 4),
+    win_rate        DECIMAL(10, 4),
+    annual_return   DECIMAL(10, 4),
+    total_trades    INT,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- 鏈上指標時序（鏈上信號軌核心數據）
+CREATE TABLE IF NOT EXISTS on_chain_metrics (
+    id                  BIGSERIAL PRIMARY KEY,
+    recorded_at         TIMESTAMP      NOT NULL,
+    fear_greed_index    INT,
+    fear_greed_label    VARCHAR(20),
+    btc_exchange_flow   DECIMAL(20, 2),
+    nupl                DECIMAL(10, 4),
+    sopr                DECIMAL(10, 4),
+    created_at          TIMESTAMP DEFAULT NOW(),
+    UNIQUE (recorded_at)
+);
