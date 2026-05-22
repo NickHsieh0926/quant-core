@@ -25,3 +25,10 @@ jobs:
         run: |
           chmod +x mvnw
           ./mvnw -B verify
+          
+      - name: Upload test results  
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: backend/quant-core/target/surefire-reports/

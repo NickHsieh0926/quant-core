@@ -50,11 +50,12 @@ public class MarketDataService implements IMarketDataUseCase {
 			LocalDate.now().minusDays(365).atStartOfDay(ZoneOffset.UTC).toInstant()
 			.toEpochMilli();
 
-		JobParameters params =
-			new JobParametersBuilder().addString("symbol", symbol).addString("interval", interval)
-				.addLong("startTime", startTime)
-				.addLong("runAt", System.currentTimeMillis()) // 確保每次 JobParameters 唯一
-				.toJobParameters();
+		JobParameters params = new JobParametersBuilder()
+			.addString("symbol", symbol)
+			.addString("interval", interval)
+			.addLong("startTime", startTime)
+			.addLong("runAt", System.currentTimeMillis()) // 確保每次 JobParameters 唯一
+			.toJobParameters();
 
 		LOGGER.info("ohlcvIngestionJob params symbol={}, interval={}, startTime={}, runAt={}",
 			symbol, interval, startTime, System.currentTimeMillis());

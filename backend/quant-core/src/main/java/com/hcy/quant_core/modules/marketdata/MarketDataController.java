@@ -1,8 +1,9 @@
 package com.hcy.quant_core.modules.marketdata;
 
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
-import com.hcy.quant_core.modules.marketdata.model.IngestionRequest;
+import com.hcy.quant_core.infrastructure.web.response.ApiResponse;
 import com.hcy.quant_core.modules.marketdata.model.OhlcvRecord;
+import com.hcy.quant_core.modules.marketdata.model.dto.IngestionRequest;
 import com.hcy.quant_core.modules.marketdata.port.IMarketDataUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,16 +25,18 @@ public class MarketDataController {
 	}
 
 	@GetMapping("/ohlcv")
-	public List<OhlcvRecord> getOhlcv(@RequestParam String symbol,
+	public ApiResponse<List<OhlcvRecord>> getOhlcv(@RequestParam String symbol,
 		@RequestParam String interval) {
-		TRACE.message("[MarketDataController] getOhlcv Request");
-		return marketDataUseCase.getOhlcv(symbol, interval);
+		TRACE.message("getOhlcv Request");
+		List<OhlcvRecord> result = marketDataUseCase.getOhlcv(symbol, interval);
+		return ApiResponse.ok(result);
 	}
 
 	@PostMapping("/ingest")
-	public ResponseEntity<String> triggerIngestion(@RequestBody IngestionRequest request) {
-		TRACE.message("[MarketDataController] triggerIngestion Request");
+	public ResponseEntity<ApiResponse<String>> triggerIngestion(
+		@RequestBody IngestionRequest request) {
+		TRACE.message("triggerIngestion Request");
 		String jobId = marketDataUseCase.triggerIngestion(request.symbol(), request.interval());
-		return ResponseEntity.accepted().body("Job started, id=" + jobId);
+		return ResponseEntity.accepted().body(ApiResponse.ok("TriggerIngestion started", jobId));
 	}
 }

@@ -2,6 +2,7 @@ package com.hcy.quant_core.modules.marketdata.model.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -39,6 +40,7 @@ public class OhlcvEntity {
 	@Column(name = "interval", nullable = false)
 	private String interval;
 
+	@CreationTimestamp
 	@Column(name = "created_at")
 	private LocalDateTime createdAt;
 }
