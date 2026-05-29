@@ -2,6 +2,7 @@ package com.hcy.quant_core.modules.statarb;
 
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
 import com.hcy.quant_core.infrastructure.web.response.ApiResponse;
+import com.hcy.quant_core.modules.statarb.model.StatArbParams;
 import com.hcy.quant_core.modules.statarb.model.StatArbSignalRecord;
 import com.hcy.quant_core.modules.statarb.port.IStatArbUseCase;
 import org.slf4j.Logger;
@@ -31,5 +32,18 @@ public class StatArbController {
 		TRACE.message("getHistory Request");
 		List<StatArbSignalRecord> result = statArbUseCase.getRecentSignals(limit);
 		return ApiResponse.ok(result);
+	}
+
+	@GetMapping("/live")
+	public ApiResponse<StatArbSignalRecord> getLive(
+		@RequestParam(defaultValue = "BTCUSDT") String symbolA,
+		@RequestParam(defaultValue = "ETHUSDT") String symbolB,
+		@RequestParam(defaultValue = "2.0") double entryThreshold,
+		@RequestParam(defaultValue = "0.5") double exitThreshold,
+		@RequestParam(defaultValue = "30") int lookbackSize) {
+		TRACE.message("getLive Request");
+		StatArbParams params = new StatArbParams(entryThreshold, exitThreshold, lookbackSize);
+		StatArbSignalRecord signal = statArbUseCase.calculate(symbolA, symbolB, params);
+		return ApiResponse.ok(signal);
 	}
 }

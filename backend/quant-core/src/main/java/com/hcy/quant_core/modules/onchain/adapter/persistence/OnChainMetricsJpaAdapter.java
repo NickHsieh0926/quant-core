@@ -1,4 +1,4 @@
-package com.hcy.quant_core.modules.onchain.adaptor.persistence;
+package com.hcy.quant_core.modules.onchain.adapter.persistence;
 
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
 import com.hcy.quant_core.modules.onchain.model.OnChainMetricsRecord;
@@ -45,6 +45,13 @@ public class OnChainMetricsJpaAdapter implements OnChainMetricsPersistencePort {
 	@Override
 	public List<OnChainMetricsRecord> findAll() {
 		return repository.findAll().stream().map(this::toRecord).toList();
+	}
+
+	@Override
+	public OnChainMetricsRecord findLatestOne() {
+		return repository.findTopByOrderByRecordedAtDesc()
+			.map(this::toRecord)
+			.orElse(null);
 	}
 
 	private OnChainMetricsEntity toEntity(OnChainMetricsRecord r) {

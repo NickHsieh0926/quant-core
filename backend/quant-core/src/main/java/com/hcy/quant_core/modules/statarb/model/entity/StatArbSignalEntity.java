@@ -30,6 +30,9 @@ public class StatArbSignalEntity {
 	@Column(name = "signal_at", nullable = false)
 	private LocalDateTime signalAt;
 
+	@Column(nullable = false)
+	private boolean triggered;
+
 	@CreationTimestamp
 	@Column(name = "created_at")
 	private LocalDateTime createdAt;

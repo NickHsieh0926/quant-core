@@ -1,6 +1,5 @@
 package com.hcy.quant_core.modules.onchain.adapter.batch;
 
-import com.hcy.quant_core.modules.onchain.adaptor.batch.FearGreedItemReader;
 import com.hcy.quant_core.modules.onchain.model.OnChainMetricsRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestTemplate;

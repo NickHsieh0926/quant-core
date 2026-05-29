@@ -11,5 +11,5 @@ public class QuantCoreApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(QuantCoreApplication.class, args);
 	}
-
+	
 }

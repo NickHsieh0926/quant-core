@@ -1,4 +1,4 @@
-package com.hcy.quant_core.modules.onchain.adaptor.batch;
+package com.hcy.quant_core.modules.onchain.adapter.batch;
 
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
 import com.hcy.quant_core.modules.onchain.model.OnChainMetricsRecord;

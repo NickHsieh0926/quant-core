@@ -1,4 +1,4 @@
-package com.hcy.quant_core.modules.onchain.adaptor.batch;
+package com.hcy.quant_core.modules.onchain.adapter.batch;
 
 import com.hcy.quant_core.modules.onchain.model.OnChainMetricsRecord;
 import com.hcy.quant_core.modules.onchain.port.OnChainMetricsPersistencePort;
@@ -8,6 +8,7 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -15,7 +16,7 @@ import org.springframework.web.client.RestTemplate;
 
 @Configuration
 public class OnChainIngestionJobConfig {
-	
+
 	@Bean
 	@StepScope
 	public FearGreedItemReader fearGreedItemReader(RestTemplate restTemplate) {
@@ -35,8 +36,16 @@ public class OnChainIngestionJobConfig {
 	}
 
 	@Bean
-	public Job onChainIngestionJob(JobRepository jobRepository, Step onChainStep) {
+	public OnChainJobListener onChainJobListener(
+		ApplicationEventPublisher eventPublisher) {
+		return new OnChainJobListener(eventPublisher);
+	}
+
+	@Bean
+	public Job onChainIngestionJob(JobRepository jobRepository, Step onChainStep,
+		OnChainJobListener onChainJobListener) {
 		return new JobBuilder("onChainIngestionJob", jobRepository)
+			.listener(onChainJobListener)
 			.start(onChainStep)
 			.build();
 	}

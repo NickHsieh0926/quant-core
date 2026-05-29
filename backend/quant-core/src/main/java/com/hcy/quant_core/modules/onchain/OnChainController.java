@@ -7,8 +7,10 @@ import com.hcy.quant_core.modules.onchain.port.IOnChainUseCase;
 import com.hcy.quant_core.modules.statarb.StatArbController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -31,11 +33,5 @@ public class OnChainController {
 		List<OnChainMetricsRecord> result = onChainUseCase.getLatestMetrics(limit);
 		return ApiResponse.ok(result);
 	}
-
-	@PostMapping("/ingest")
-	public ResponseEntity<ApiResponse<String>> triggerIngestion() {
-		TRACE.message("triggerIngestion Request");
-		onChainUseCase.triggerIngestion();
-		return ResponseEntity.accepted().body(ApiResponse.ok("OnChain ingestion started"));
-	}
+	
 }

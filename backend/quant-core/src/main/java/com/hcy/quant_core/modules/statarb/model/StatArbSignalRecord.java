@@ -7,5 +7,6 @@ public record StatArbSignalRecord(
 	String symbolB,
 	double zScore,
 	String direction,
+	boolean triggered,
 	LocalDateTime signalAt
 ) {}

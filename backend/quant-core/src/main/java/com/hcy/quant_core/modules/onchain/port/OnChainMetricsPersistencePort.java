@@ -13,4 +13,6 @@ public interface OnChainMetricsPersistencePort {
 	List<OnChainMetricsRecord> findLatest(int limit);
 
 	List<OnChainMetricsRecord> findAll();
+
+	OnChainMetricsRecord findLatestOne();
 }

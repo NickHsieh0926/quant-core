@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS stat_arb_signal (
     symbol_b    VARCHAR(20)     NOT NULL,
     z_score     DECIMAL(10, 4)  NOT NULL,
     direction   VARCHAR(20)     NOT NULL,
+    triggered   BOOLEAN         NOT NULL,
     signal_at   TIMESTAMP       NOT NULL,
     created_at  TIMESTAMP DEFAULT NOW()
 );
@@ -234,4 +235,5 @@ COMMENT ON COLUMN stat_arb_signal.symbol_a   IS '交易對 A';
 COMMENT ON COLUMN stat_arb_signal.symbol_b   IS '交易對 B';
 COMMENT ON COLUMN stat_arb_signal.z_score    IS '觸發時的 Z-Score';
 COMMENT ON COLUMN stat_arb_signal.direction  IS '信號方向（OPEN_LONG / OPEN_SHORT / CLOSE / HOLD）';
+COMMENT ON COLUMN stat_arb_signal.triggered  IS '是否觸發進場閾值';
 COMMENT ON COLUMN stat_arb_signal.signal_at  IS '信號產生時間';
