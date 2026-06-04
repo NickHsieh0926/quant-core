@@ -41,6 +41,8 @@ public class OnChainService implements IOnChainUseCase {
 		if (latest == null)
 			return null;
 
+		LOGGER.info("LatestOne OnChainMetrics recordedAt:{}", latest.recordedAt());
+		
 		int score = calculateCompositeScore(latest.fearGreedIndex(), latest.btcExchangeFlow());
 
 		String direction = score >= 60 ? "BULLISH" : score <= 40 ? "BEARISH" : "NEUTRAL";

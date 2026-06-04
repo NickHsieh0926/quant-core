@@ -41,10 +41,8 @@ public class OnChainScheduler {
 		this.jobLauncher = jobLauncher;
 		this.onChainIngestionJob = onChainIngestionJob;
 	}
-
-	// 每天 00:05 自動執行"0 5 0 * * *"
-	// Every 3 minutes "0 */3 * ? * *"
-	@Scheduled(cron = "0 */3 * ? * *")
+	
+	@Scheduled(cron = "${app.scheduler.onchain.cron}")
 	public void scheduledRun() {
 		JobParameters params = new JobParametersBuilder()
 			.addLong("runAt", System.currentTimeMillis())

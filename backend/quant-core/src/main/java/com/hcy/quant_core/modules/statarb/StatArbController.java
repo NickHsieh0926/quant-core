@@ -1,7 +1,9 @@
 package com.hcy.quant_core.modules.statarb;
 
+import com.hcy.quant_core.infrastructure.shared.exception.QuantException;
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
 import com.hcy.quant_core.infrastructure.web.response.ApiResponse;
+import com.hcy.quant_core.modules.statarb.config.StatArbProperties;
 import com.hcy.quant_core.modules.statarb.model.StatArbParams;
 import com.hcy.quant_core.modules.statarb.model.StatArbSignalRecord;
 import com.hcy.quant_core.modules.statarb.port.IStatArbUseCase;
@@ -21,9 +23,11 @@ public class StatArbController {
 	private static final DebugTrace TRACE = new DebugTrace(LOGGER, LOGGER.isDebugEnabled());
 
 	private final IStatArbUseCase statArbUseCase;
+	private final StatArbProperties props;
 
-	public StatArbController(IStatArbUseCase statArbUseCase) {
+	public StatArbController(IStatArbUseCase statArbUseCase, StatArbProperties props) {
 		this.statArbUseCase = statArbUseCase;
+		this.props = props;
 	}
 
 	@GetMapping("/history")
@@ -36,13 +40,28 @@ public class StatArbController {
 
 	@GetMapping("/live")
 	public ApiResponse<StatArbSignalRecord> getLive(
-		@RequestParam(defaultValue = "BTCUSDT") String symbolA,
-		@RequestParam(defaultValue = "ETHUSDT") String symbolB,
-		@RequestParam(defaultValue = "2.0") double entryThreshold,
-		@RequestParam(defaultValue = "0.5") double exitThreshold,
-		@RequestParam(defaultValue = "30") int lookbackSize) {
-		TRACE.message("getLive Request");
-		StatArbParams params = new StatArbParams(entryThreshold, exitThreshold, lookbackSize);
+		@RequestParam String symbolA,
+		@RequestParam String symbolB,
+		@RequestParam(required = false) Double entryThreshold,
+		@RequestParam(required = false) Double exitThreshold,
+		@RequestParam(required = false) Integer lookbackSize) {
+
+		StatArbProperties.PairConfig pairConfig = props.pairs().stream()
+			.filter(p -> p.symbolA().equals(symbolA) && p.symbolB().equals(symbolB))
+			.findFirst()
+			.orElseThrow(() -> new QuantException(
+				"Pair not configured: " + symbolA + "/" + symbolB));
+
+		StatArbParams params = new StatArbParams(
+			entryThreshold != null ? entryThreshold : pairConfig.zscoreThreshold(),
+			exitThreshold != null ? exitThreshold : pairConfig.zscoreExitThreshold(),
+			lookbackSize != null ? lookbackSize : pairConfig.lookbackSize()
+		);
+
+		LOGGER.info("getLive Param -> symbolA:{}, symbolB:{}, entryThreshold:{}, " +
+				"exitThreshold:{}, lookbackSize:{}", symbolA, symbolB, params.entryThreshold(),
+			params.exitThreshold(), params.lookbackSize());
+
 		StatArbSignalRecord signal = statArbUseCase.calculate(symbolA, symbolB, params);
 		return ApiResponse.ok(signal);
 	}

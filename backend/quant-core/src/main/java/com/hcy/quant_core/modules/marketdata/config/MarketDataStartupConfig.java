@@ -15,8 +15,7 @@ public class MarketDataStartupConfig {
 		IBinanceStreamPort streamPort,
 		MarketDataProperties marketDataProperties) {
 		return args -> {
-			// application.properties 的 market.data.symbols 注入到 MarketDataProperties
-			var symbols = new HashSet<>(marketDataProperties.getSymbols());
+			var symbols = new HashSet<>(marketDataProperties.symbols());
 			streamPort.subscribe(symbols);
 		};
 	}

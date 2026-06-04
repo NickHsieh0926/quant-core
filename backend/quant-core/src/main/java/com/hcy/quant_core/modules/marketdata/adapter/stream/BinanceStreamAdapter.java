@@ -37,7 +37,9 @@ public class BinanceStreamAdapter implements IBinanceStreamPort {
 	@Override
 	public void subscribe(Set<String> symbols) {
 		for (String symbol : symbols) {
-			virtualThreadExecutor.submit(() -> connectAndStream(symbol.toLowerCase()));
+			Thread.ofVirtual()
+				.name("binance-stream-" + symbol.toLowerCase())
+				.start(() -> connectAndStream(symbol.toLowerCase()));
 		}
 	}
 

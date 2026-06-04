@@ -36,7 +36,7 @@ public class StatArbServiceTest {
 
 	private StatArbService service;
 
-	private static final StatArbParams PARAMS = StatArbParams.defaults();
+	private static final StatArbParams PARAMS = new StatArbParams(2.0, 0.5, 30);
 
 	@BeforeEach
 	void setUp() {
