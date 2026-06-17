@@ -44,6 +44,7 @@ public class StatArbController {
 		@RequestParam String symbolB,
 		@RequestParam(required = false) Double entryThreshold,
 		@RequestParam(required = false) Double exitThreshold,
+		@RequestParam(required = false) Double stopLossThreshold,
 		@RequestParam(required = false) Integer lookbackSize) {
 
 		StatArbProperties.PairConfig pairConfig = props.pairs().stream()
@@ -55,6 +56,7 @@ public class StatArbController {
 		StatArbParams params = new StatArbParams(
 			entryThreshold != null ? entryThreshold : pairConfig.zscoreThreshold(),
 			exitThreshold != null ? exitThreshold : pairConfig.zscoreExitThreshold(),
+			stopLossThreshold != null ? stopLossThreshold : pairConfig.zscoreStopLossThreshold(),
 			lookbackSize != null ? lookbackSize : pairConfig.lookbackSize()
 		);
 

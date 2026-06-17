@@ -1,6 +1,7 @@
 package com.hcy.quant_core.modules.statarb;
 
 import com.hcy.quant_core.infrastructure.shared.util.CacheKeyConstants;
+import com.hcy.quant_core.infrastructure.shared.util.RedisPriceReader;
 import com.hcy.quant_core.modules.statarb.calculator.ZScoreCalculator;
 import com.hcy.quant_core.modules.statarb.model.StatArbParams;
 import com.hcy.quant_core.modules.statarb.model.StatArbSignalRecord;
@@ -33,16 +34,19 @@ public class StatArbServiceTest {
 	private ListOperations<String, String> listOps;
 	@Mock
 	private ValueOperations<String, String> valueOps;
+	@Mock
+	private RedisPriceReader redisPriceReader;
 
 	private StatArbService service;
 
-	private static final StatArbParams PARAMS = new StatArbParams(2.0, 0.5, 30);
+	private static final StatArbParams PARAMS = new StatArbParams(2.0, 0.5, 3.5, 30);
 
 	@BeforeEach
 	void setUp() {
 		lenient().when(redisTemplate.opsForList()).thenReturn(listOps);
 		lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
-		service = new StatArbService(persistencePort, redisTemplate, zScoreCalculator);
+		service = new StatArbService(persistencePort, redisTemplate, zScoreCalculator,
+			redisPriceReader);
 	}
 
 	// stub Redis 回傳 30 筆假收盤價（BTCUSDT 和 ETHUSDT 各一份）
@@ -76,7 +80,6 @@ public class StatArbServiceTest {
 		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
 
 		assertThat(result.direction()).isEqualTo("OPEN_LONG_B");
-		assertThat(result.triggered()).isTrue();
 	}
 
 	@Test
@@ -88,7 +91,6 @@ public class StatArbServiceTest {
 		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
 
 		assertThat(result.direction()).isEqualTo("OPEN_SHORT_B");
-		assertThat(result.triggered()).isTrue();
 	}
 
 	@Test
@@ -100,7 +102,6 @@ public class StatArbServiceTest {
 		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
 
 		assertThat(result.direction()).isEqualTo("CLOSE");
-		assertThat(result.triggered()).isFalse();
 	}
 
 	@Test
@@ -112,6 +113,36 @@ public class StatArbServiceTest {
 		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
 
 		assertThat(result.direction()).isEqualTo("HOLD");
-		assertThat(result.triggered()).isFalse();
+	}
+
+	@Test
+	void calculate_whenZScoreExceedsStopLoss_shouldReturnStopLoss() {
+		stubThirtyPrices();
+		when(zScoreCalculator.calculate(any(), any())).thenReturn(3.6);
+
+		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
+
+		assertThat(result.direction()).isEqualTo("STOP_LOSS");
+	}
+
+	@Test
+	void calculate_whenNegativeZScoreExceedsStopLoss_shouldReturnStopLoss() {
+		stubThirtyPrices();
+		when(zScoreCalculator.calculate(any(), any())).thenReturn(-3.6);
+
+		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
+
+		assertThat(result.direction()).isEqualTo("STOP_LOSS");
+	}
+
+	@Test
+	void calculate_whenZScoreEqualsStopLoss_shouldReturnStopLoss() {
+		// 驗證 >= 而不是 >：剛好等於停損線也要觸發
+		stubThirtyPrices();
+		when(zScoreCalculator.calculate(any(), any())).thenReturn(3.5);
+
+		StatArbSignalRecord result = service.calculate("BTCUSDT", "ETHUSDT", PARAMS);
+
+		assertThat(result.direction()).isEqualTo("STOP_LOSS");
 	}
 }

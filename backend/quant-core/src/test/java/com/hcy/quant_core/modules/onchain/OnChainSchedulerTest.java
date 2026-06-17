@@ -1,7 +1,10 @@
 package com.hcy.quant_core.modules.onchain;
 
+import com.hcy.quant_core.modules.alert.model.SignalAlertRecord;
+import com.hcy.quant_core.modules.alert.port.SignalAlertPersistencePort;
 import com.hcy.quant_core.modules.onchain.model.OnChainSignalRecord;
 import com.hcy.quant_core.modules.onchain.port.IOnChainUseCase;
+import com.hcy.quant_core.modules.onchain.port.OnChainSignalPersistencePort;
 import com.hcy.quant_core.modules.websocket.model.AlertType;
 import com.hcy.quant_core.modules.websocket.model.SignalAlertPayload;
 import com.hcy.quant_core.modules.websocket.model.direction.OnChainDirection;
@@ -16,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.launch.JobLauncher;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -33,18 +37,24 @@ class OnChainSchedulerTest {
 	private JobLauncher mockLauncher;
 	@Mock
 	private Job mockJob;
+	@Mock
+	private OnChainSignalPersistencePort persistencePort;
+	@Mock
+	private SignalAlertPersistencePort signalAlertPersistencePort;
 
 	private OnChainScheduler scheduler;
 
 	@BeforeEach
 	void setUp() {
-		scheduler = new OnChainScheduler(mockUseCase, mockPublisher, mockLauncher, mockJob);
+		scheduler = new OnChainScheduler(mockUseCase, mockPublisher, mockLauncher, mockJob,
+			persistencePort, signalAlertPersistencePort);
 	}
 
 	// triggered=false，direction=NEUTRAL，score=50
 	private OnChainSignalRecord neutralSignal() {
 		return new OnChainSignalRecord(
-			LocalDateTime.now(), 50, "Neutral", 50, "NEUTRAL", false, "RULE_BASED", "test summary"
+			LocalDateTime.now(), 50, "Neutral", 50, "NEUTRAL", false, "RULE_BASED", null, "test " +
+			"summary"
 		);
 	}
 
@@ -52,7 +62,7 @@ class OnChainSchedulerTest {
 	private OnChainSignalRecord bullishSignal() {
 		return new OnChainSignalRecord(
 			LocalDateTime.now(), 20, "Extreme Fear", 80, "BULLISH", true, "RULE_BASED",
-			"test summary"
+			new BigDecimal("65000"), "test summary"
 		);
 	}
 
@@ -60,7 +70,7 @@ class OnChainSchedulerTest {
 	private OnChainSignalRecord bearishSignal() {
 		return new OnChainSignalRecord(
 			LocalDateTime.now(), 80, "Extreme Greed", 20, "BEARISH", true, "RULE_BASED",
-			"test summary"
+			new BigDecimal("98000"), "test summary"
 		);
 	}
 
@@ -186,5 +196,76 @@ class OnChainSchedulerTest {
 		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
 
 		verify(mockPublisher, never()).publish(any());
+	}
+
+	// on_chain_signal 每次有 signal 都持久化
+	@Test
+	void evaluateAndPublish_alwaysSavesOnChainSignal() {
+		when(mockUseCase.calculateSignal()).thenReturn(neutralSignal());
+
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+
+		verify(persistencePort).save(any(OnChainSignalRecord.class));
+	}
+
+	// signal = null 時，on_chain_signal 不持久化
+	@Test
+	void evaluateAndPublish_whenNull_doesNotSaveOnChainSignal() {
+		when(mockUseCase.calculateSignal()).thenReturn(null);
+
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+
+		verify(persistencePort, never()).save(any());
+	}
+
+	// ENTRY 時 signal_alert 寫入一筆，且 symbolB = null（單邊策略）
+	@Test
+	void onEntry_signalAlertIsSavedWithNullSymbolB() {
+		when(mockUseCase.calculateSignal()).thenReturn(bullishSignal());
+
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+
+		ArgumentCaptor<SignalAlertRecord> captor =
+			ArgumentCaptor.forClass(SignalAlertRecord.class);
+		verify(signalAlertPersistencePort).save(captor.capture());
+
+		assertThat(captor.getValue().alertType()).isEqualTo("ENTRY");
+		assertThat(captor.getValue().strategy()).isEqualTo("ON_CHAIN");
+		assertThat(captor.getValue().symbolB()).isNull();   // 單邊策略無 symbolB
+	}
+
+	// NONE 時 signal_alert 不寫入（BULLISH → BULLISH 同方向不重推）
+	@Test
+	void onNone_signalAlertIsNotSaved() {
+		when(mockUseCase.calculateSignal()).thenReturn(bullishSignal());
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+		Mockito.clearInvocations(signalAlertPersistencePort);
+
+		// BULLISH → BULLISH：AlertType.NONE
+		when(mockUseCase.calculateSignal()).thenReturn(bullishSignal());
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+
+		verify(signalAlertPersistencePort, never()).save(any());
+	}
+
+	// 直翻時 signal_alert 寫兩次（EXIT + ENTRY），順序正確
+	@Test
+	void onDirectFlip_signalAlertSavedTwiceInOrder() {
+		when(mockUseCase.calculateSignal()).thenReturn(bullishSignal());
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+		Mockito.clearInvocations(signalAlertPersistencePort);
+
+		when(mockUseCase.calculateSignal()).thenReturn(bearishSignal());
+		scheduler.evaluateAndPublish(new OnChainJobCompletedEvent(this));
+
+		ArgumentCaptor<SignalAlertRecord> captor =
+			ArgumentCaptor.forClass(SignalAlertRecord.class);
+		verify(signalAlertPersistencePort, times(2)).save(captor.capture());
+
+		List<SignalAlertRecord> saved = captor.getAllValues();
+		assertThat(saved.get(0).alertType()).isEqualTo("EXIT");
+		assertThat(saved.get(0).direction()).isEqualTo("BULLISH");
+		assertThat(saved.get(1).alertType()).isEqualTo("ENTRY");
+		assertThat(saved.get(1).direction()).isEqualTo("BEARISH");
 	}
 }

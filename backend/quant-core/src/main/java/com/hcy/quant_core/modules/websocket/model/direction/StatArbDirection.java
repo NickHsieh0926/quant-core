@@ -5,5 +5,6 @@ public enum StatArbDirection implements SignalDirection {
 	OPEN_LONG_B,
 	OPEN_SHORT_B,
 	CLOSE,
-	HOLD
+	HOLD,
+	STOP_LOSS
 }

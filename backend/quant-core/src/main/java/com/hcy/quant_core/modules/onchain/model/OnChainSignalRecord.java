@@ -1,5 +1,6 @@
 package com.hcy.quant_core.modules.onchain.model;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record OnChainSignalRecord(
@@ -10,5 +11,6 @@ public record OnChainSignalRecord(
 	String direction,
 	boolean triggered,
 	String source,
+	BigDecimal symbolAPrice,
 	String summary
 ) {}

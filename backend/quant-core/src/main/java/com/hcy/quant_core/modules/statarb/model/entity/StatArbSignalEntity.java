@@ -21,6 +21,12 @@ public class StatArbSignalEntity {
 	@Column(name = "symbol_b", nullable = false)
 	private String symbolB;
 
+	@Column(name = "symbol_a_price", nullable = false)
+	private BigDecimal symbolAPrice;
+
+	@Column(name = "symbol_b_price", nullable = false)
+	private BigDecimal symbolBPrice;
+
 	@Column(name = "z_score", nullable = false)
 	private BigDecimal zScore;
 
@@ -29,9 +35,6 @@ public class StatArbSignalEntity {
 
 	@Column(name = "signal_at", nullable = false)
 	private LocalDateTime signalAt;
-
-	@Column(nullable = false)
-	private boolean triggered;
 
 	@CreationTimestamp
 	@Column(name = "created_at")

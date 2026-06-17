@@ -5,7 +5,7 @@ import com.hcy.quant_core.modules.backtest.model.TradeResult;
 import com.hcy.quant_core.modules.backtest.port.BacktestResultPersistencePort;
 import com.hcy.quant_core.modules.marketdata.port.OhlcvPersistencePort;
 import com.hcy.quant_core.modules.statarb.calculator.ZScoreCalculator;
-import com.hcy.quant_core.modules.statarb.strategy.MeanReversionStrategy;
+import com.hcy.quant_core.modules.strategy.MeanReversionStrategy;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;

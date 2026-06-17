@@ -35,9 +35,10 @@ public class StatArbSignalJpaAdapter implements StatArbSignalPersistencePort {
 		StatArbSignalEntity e = new StatArbSignalEntity();
 		e.setSymbolA(r.symbolA());
 		e.setSymbolB(r.symbolB());
+		e.setSymbolAPrice(r.symbolAPrice());
+		e.setSymbolBPrice(r.symbolBPrice());
 		e.setZScore(BigDecimal.valueOf(r.zScore()));
 		e.setDirection(r.direction());
-		e.setTriggered(r.triggered());
 		e.setSignalAt(r.signalAt());
 		return e;
 	}
@@ -46,9 +47,10 @@ public class StatArbSignalJpaAdapter implements StatArbSignalPersistencePort {
 		return new StatArbSignalRecord(
 			e.getSymbolA(),
 			e.getSymbolB(),
+			e.getSymbolAPrice(),
+			e.getSymbolBPrice(),
 			e.getZScore().doubleValue(),
 			e.getDirection(),
-			e.isTriggered(),
 			e.getSignalAt()
 		);
 	}

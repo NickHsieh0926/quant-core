@@ -1,6 +1,8 @@
 package com.hcy.quant_core.modules.statarb;
 
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
+import com.hcy.quant_core.modules.alert.model.SignalAlertRecord;
+import com.hcy.quant_core.modules.alert.port.SignalAlertPersistencePort;
 import com.hcy.quant_core.modules.statarb.config.StatArbProperties;
 import com.hcy.quant_core.modules.statarb.model.StatArbParams;
 import com.hcy.quant_core.modules.statarb.model.StatArbSignalRecord;
@@ -35,6 +37,7 @@ public class StatArbScheduler {
 	private final StatArbSignalPersistencePort persistencePort;
 	private final IAlertPublisher alertPublisher;
 	private final StatArbProperties props;
+	private final SignalAlertPersistencePort signalAlertPersistencePort;
 
 	// Edge Trigger 狀態：每個交易對獨立追蹤
 	private final Map<String, StatArbDirection> lastDirectionByPair = new ConcurrentHashMap<>();
@@ -51,11 +54,13 @@ public class StatArbScheduler {
 		StatArbSignalPersistencePort persistencePort,
 		IAlertPublisher alertPublisher,
 		StatArbProperties props,
-		MeterRegistry meterRegistry) {
+		MeterRegistry meterRegistry,
+		SignalAlertPersistencePort signalAlertPersistencePort) {
 		this.statArbUseCase = statArbUseCase;
 		this.persistencePort = persistencePort;
 		this.alertPublisher = alertPublisher;
 		this.props = props;
+		this.signalAlertPersistencePort = signalAlertPersistencePort;
 		this.skipCounter = Counter.builder("statarb.scheduler.skip.total")
 			.description("Total times StatArb scheduler was skipped due to lock contention")
 			.register(meterRegistry);
@@ -113,10 +118,11 @@ public class StatArbScheduler {
 
 	private PairResult calculatePair(StatArbProperties.PairConfig pair) {
 		try {
-			Thread.sleep(3000); // 模擬慢速執行
+			//			Thread.sleep(3000); // 模擬慢速執行
 			StatArbParams params = new StatArbParams(
 				pair.zscoreThreshold(),
 				pair.zscoreExitThreshold(),
+				pair.zscoreStopLossThreshold(),
 				pair.lookbackSize()
 			);
 			StatArbSignalRecord signal = statArbUseCase.calculate(
@@ -148,19 +154,26 @@ public class StatArbScheduler {
 		if (isDirectFlip) {
 			// EXIT 舊方向，ENTRY 新方向
 			alertPublisher.publish(buildPayload(signal, lastActive, AlertType.EXIT));
+			saveSignalAlert(signal, lastActive, AlertType.EXIT);
+ 
 			alertPublisher.publish(buildPayload(signal, current, AlertType.ENTRY));
+			saveSignalAlert(signal, current, AlertType.ENTRY);
 		} else if (!wasInPosition && isInPosition) {
 			// 無倉 → 開倉
 			alertPublisher.publish(buildPayload(signal, current, AlertType.ENTRY));
-		} else if (wasInPosition && !isInPosition) {
-			// 持倉 → 平倉：direction 用 lastActiveDirection，不用 HOLD
+			saveSignalAlert(signal, current, AlertType.ENTRY);
+		} else if (wasInPosition && !isInPosition && current != StatArbDirection.HOLD) {
+			// 持倉 → 平倉，STOP_LOSS / EXIT 要平倉、HOLD不平倉
 			alertPublisher.publish(buildPayload(signal, lastActive, AlertType.EXIT));
+			saveSignalAlert(signal, lastActive, AlertType.EXIT);
 		} else {
-			// 無變化：NONE
+			// 無變化：NONE, 不寫入 signal_alert
 			alertPublisher.publish(buildPayload(signal, current, AlertType.NONE));
 		}
 
-		lastDirectionByPair.put(pairKey, current);
+		if (current != StatArbDirection.HOLD) {
+			lastDirectionByPair.put(pairKey, current);
+		}
 	}
 
 	private boolean isPositionDirection(StatArbDirection direction) {
@@ -170,13 +183,30 @@ public class StatArbScheduler {
 
 	private SignalAlertPayload buildPayload(StatArbSignalRecord signal,
 		StatArbDirection direction, AlertType alertType) {
+		String symbolPair = signal.symbolA() + "/" + signal.symbolB();
 		return new SignalAlertPayload(
 			"STAT_ARB",
+			symbolPair,
 			direction,
 			signal.zScore(),
 			alertType,
-			String.format("Z-Score: %.4f | Direction: %s", signal.zScore(), direction),
+			String.format("[%s] Z-Score: %.4f | Direction: %s", symbolPair, signal.zScore(),
+				direction),
 			signal.signalAt()
 		);
+	}
+
+	private void saveSignalAlert(StatArbSignalRecord signal,
+		StatArbDirection direction, AlertType alertType) {
+		signalAlertPersistencePort.save(new SignalAlertRecord(
+			"STAT_ARB",
+			direction.name(),
+			alertType.name(),
+			signal.symbolA(),
+			signal.symbolB(),
+			signal.symbolAPrice(),
+			signal.symbolBPrice(),
+			signal.signalAt()
+		));
 	}
 }

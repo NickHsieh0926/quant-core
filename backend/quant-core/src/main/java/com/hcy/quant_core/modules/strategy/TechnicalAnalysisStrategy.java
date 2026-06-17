@@ -1,4 +1,4 @@
-package com.hcy.quant_core.modules.statarb.strategy;
+package com.hcy.quant_core.modules.strategy;
 
 public record TechnicalAnalysisStrategy(
 	String symbol,

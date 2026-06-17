@@ -2,6 +2,7 @@ package com.hcy.quant_core.modules.statarb;
 
 import com.hcy.quant_core.infrastructure.shared.util.CacheKeyConstants;
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
+import com.hcy.quant_core.infrastructure.shared.util.RedisPriceReader;
 import com.hcy.quant_core.modules.statarb.calculator.ZScoreCalculator;
 import com.hcy.quant_core.modules.statarb.model.StatArbParams;
 import com.hcy.quant_core.modules.statarb.model.StatArbSignalRecord;
@@ -24,13 +25,16 @@ public class StatArbService implements IStatArbUseCase {
 	private final StatArbSignalPersistencePort persistencePort;
 	private final StringRedisTemplate redisTemplate;
 	private final ZScoreCalculator zScoreCalculator;
+	private final RedisPriceReader redisPriceReader;
 
 	public StatArbService(StatArbSignalPersistencePort persistencePort,
 		StringRedisTemplate redisTemplate,
-		ZScoreCalculator zScoreCalculator) {
+		ZScoreCalculator zScoreCalculator,
+		RedisPriceReader redisPriceReader) {
 		this.persistencePort = persistencePort;
 		this.redisTemplate = redisTemplate;
 		this.zScoreCalculator = zScoreCalculator;
+		this.redisPriceReader = redisPriceReader;
 	}
 
 	@Override
@@ -52,12 +56,16 @@ public class StatArbService implements IStatArbUseCase {
 
 		double zScore = zScoreCalculator.calculate(pricesA, pricesB);
 
-		String direction = switch (Double.compare(Math.abs(zScore), params.entryThreshold())) {
-			case 1 -> zScore > 0 ? "OPEN_LONG_B" : "OPEN_SHORT_B";  // |z| > 2.0 || |z| < -2.0
-			default -> Math.abs(zScore) < params.exitThreshold() ? "CLOSE" : "HOLD";
-		};
-
-		boolean triggered = Math.abs(zScore) >= params.entryThreshold();
+		String direction;
+		if (Math.abs(zScore) >= params.stopLossThreshold()) {
+			direction = "STOP_LOSS";
+		} else if (Math.abs(zScore) >= params.entryThreshold()) {
+			direction = zScore > 0 ? "OPEN_LONG_B" : "OPEN_SHORT_B";
+		} else if (Math.abs(zScore) < params.exitThreshold()) {
+			direction = "CLOSE";
+		} else {
+			direction = "HOLD";
+		}
 
 		// 最新 Z-Score 快取
 		redisTemplate.opsForValue().set(
@@ -65,7 +73,18 @@ public class StatArbService implements IStatArbUseCase {
 			String.valueOf(zScore)
 		);
 
-		return new StatArbSignalRecord(symbolA, symbolB, zScore, direction, triggered,
+		BigDecimal priceA =
+			redisPriceReader.readPriceFromRedis(CacheKeyConstants.latestPrice(symbolA));
+		BigDecimal priceB =
+			redisPriceReader.readPriceFromRedis(CacheKeyConstants.latestPrice(symbolB));
+
+		return new StatArbSignalRecord(
+			symbolA,
+			symbolB,
+			priceA,
+			priceB,
+			zScore,
+			direction,
 			LocalDateTime.now());
 	}
 
@@ -77,6 +96,4 @@ public class StatArbService implements IStatArbUseCase {
 			return List.of();
 		return raw.stream().map(BigDecimal::new).toList();
 	}
-
-
 }

@@ -1,6 +1,9 @@
 package com.hcy.quant_core.modules.onchain;
 
+import com.hcy.quant_core.infrastructure.shared.util.CacheKeyConstants;
 import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
+import com.hcy.quant_core.infrastructure.shared.util.RedisPriceReader;
+import com.hcy.quant_core.modules.onchain.config.OnChainProperties;
 import com.hcy.quant_core.modules.onchain.model.OnChainMetricsRecord;
 import com.hcy.quant_core.modules.onchain.model.OnChainSignalRecord;
 import com.hcy.quant_core.modules.onchain.port.IOnChainUseCase;
@@ -19,9 +22,15 @@ public class OnChainService implements IOnChainUseCase {
 	private static final DebugTrace TRACE = new DebugTrace(LOGGER, LOGGER.isDebugEnabled());
 
 	private final OnChainMetricsPersistencePort persistencePort;
+	private final RedisPriceReader redisPriceReader;
+	private final OnChainProperties properties;
 
-	public OnChainService(OnChainMetricsPersistencePort persistencePort) {
+	public OnChainService(OnChainMetricsPersistencePort persistencePort,
+		RedisPriceReader redisPriceReader,
+		OnChainProperties properties) {
 		this.persistencePort = persistencePort;
+		this.redisPriceReader = redisPriceReader;
+		this.properties = properties;
 	}
 
 	@Override
@@ -42,12 +51,17 @@ public class OnChainService implements IOnChainUseCase {
 			return null;
 
 		LOGGER.info("LatestOne OnChainMetrics recordedAt:{}", latest.recordedAt());
-		
-		int score = calculateCompositeScore(latest.fearGreedIndex(), latest.btcExchangeFlow());
 
-		String direction = score >= 60 ? "BULLISH" : score <= 40 ? "BEARISH" : "NEUTRAL";
+		OnChainProperties.CompositeScore cfg = properties.compositeScore();
 
-		boolean triggered = score > 70 || score < 30;
+		int score = calculateCompositeScore(latest.fearGreedIndex(), latest.btcExchangeFlow(),
+			cfg);
+
+		String direction = score >= cfg.triggeredBullishThreshold() ? "BULLISH" :
+			score <= cfg.triggeredBearishThreshold() ? "BEARISH" : "NEUTRAL";
+
+		boolean triggered =
+			score >= cfg.triggeredBullishThreshold() || score <= cfg.triggeredBearishThreshold();
 
 		String summary = String.format(
 			"Fear & Greed: %d, Exchange Flow: %s BTC, Composite Score: %d",
@@ -55,6 +69,9 @@ public class OnChainService implements IOnChainUseCase {
 			latest.btcExchangeFlow() != null ? latest.btcExchangeFlow().toPlainString() : "N/A",
 			score
 		);
+
+		BigDecimal btcPrice =
+			redisPriceReader.readPriceFromRedis(CacheKeyConstants.latestPrice("BTCUSDT"));
 
 		return new OnChainSignalRecord(
 			LocalDateTime.now(),
@@ -64,34 +81,37 @@ public class OnChainService implements IOnChainUseCase {
 			direction,
 			triggered,
 			"RULE_BASED",
+			btcPrice,
 			summary
 		);
 	}
 
-	private int calculateCompositeScore(Integer fearGreed, BigDecimal exchangeFlow) {
+	private int calculateCompositeScore(Integer fearGreed, BigDecimal exchangeFlow,
+		OnChainProperties.CompositeScore cfg) {
 		int score = 50;  // 中性基準
 
-		if (fearGreed < 25)
-			score += 20;
-		else if (fearGreed < 40)
-			score += 10;
-		else if (fearGreed > 75)
-			score -= 20;
-		else if (fearGreed > 60)
-			score -= 10;
+		if (fearGreed < cfg.extremeFearThreshold())
+			score += cfg.extremeFearDelta();
+		else if (fearGreed < cfg.fearThreshold())
+			score += cfg.fearDelta();
+		else if (fearGreed > cfg.extremeGreedThreshold())
+			score += cfg.extremeGreedDelta();
+		else if (fearGreed > cfg.greedThreshold())
+			score += cfg.greedDelta();
 
 		if (exchangeFlow != null) {
 			double flow = exchangeFlow.doubleValue();
-			if (flow < -5000)
-				score += 15;
+			if (flow < cfg.highOutflowThreshold())
+				score += cfg.highOutflowDelta();
 			else if (flow < 0)
-				score += 5;
-			else if (flow > 5000)
-				score -= 15;
+				score += cfg.lowOutflowDelta();
+			else if (flow > cfg.highInflowThreshold())
+				score += cfg.highInflowDelta();
 			else
-				score -= 5;
+				score += cfg.lowInflowDelta();
 		}
 
 		return Math.clamp(score, 0, 100);  // 強制 clamp 在 [0, 100]
 	}
+
 }

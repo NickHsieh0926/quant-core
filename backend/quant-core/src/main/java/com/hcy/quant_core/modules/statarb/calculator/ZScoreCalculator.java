@@ -1,5 +1,9 @@
 package com.hcy.quant_core.modules.statarb.calculator;
 
+import com.hcy.quant_core.infrastructure.shared.util.DebugTrace;
+import com.hcy.quant_core.modules.statarb.StatArbService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -8,6 +12,8 @@ import java.util.List;
 
 @Component
 public class ZScoreCalculator {
+	private static final Logger LOGGER = LoggerFactory.getLogger(StatArbService.class);
+	private static final DebugTrace TRACE = new DebugTrace(LOGGER, LOGGER.isDebugEnabled());
 
 	public double calculate(List<BigDecimal> pricesA, List<BigDecimal> pricesB) {
 		if (pricesA.size() != pricesB.size()) {
@@ -37,7 +43,12 @@ public class ZScoreCalculator {
 		if (stdDev == 0)
 			return 0;
 
-		double latestSpread = spreads.get(spreads.size() - 1);
+		// index 0 = 最新
+		double latestSpread = spreads.getFirst();
+
+		LOGGER.info("prices order check: get(0)={}, get(last)={}",
+			pricesA.getFirst(), pricesA.getLast());
+
 		return (latestSpread - mean) / stdDev;
 	}
 }

@@ -1,5 +1,7 @@
 package com.hcy.quant_core.modules.statarb;
 
+import com.hcy.quant_core.modules.alert.model.SignalAlertRecord;
+import com.hcy.quant_core.modules.alert.port.SignalAlertPersistencePort;
 import com.hcy.quant_core.modules.statarb.config.StatArbProperties;
 import com.hcy.quant_core.modules.statarb.model.StatArbParams;
 import com.hcy.quant_core.modules.statarb.model.StatArbSignalRecord;
@@ -20,6 +22,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -37,10 +40,13 @@ class StatArbSchedulerTest {
 	private StatArbSignalPersistencePort persistencePort;
 	@Mock
 	private IAlertPublisher alertPublisher;
+	@Mock
+	private SignalAlertPersistencePort signalAlertPersistencePort;
+
 
 	private final StatArbProperties props = new StatArbProperties(
 		List.of(new StatArbProperties.PairConfig(
-			"BTCUSDT", "ETHUSDT", 2.0, 0.5, 30
+			"BTCUSDT", "ETHUSDT", 2.0, 0.5, 3.5, 30
 		))
 	);
 
@@ -52,31 +58,31 @@ class StatArbSchedulerTest {
 	void setUp() {
 		// 每個 test new 一個新實例，確保 lastActiveDirection 從 HOLD 開始
 		scheduler = new StatArbScheduler(statArbUseCase, persistencePort, alertPublisher, props,
-			meterRegistry);
+			meterRegistry, signalAlertPersistencePort);
 	}
 
 	// symbol 固定 BTCUSDT/ETHUSDT
 	private StatArbSignalRecord signalOf(String direction, double zScore) {
-		boolean triggered = direction.equals("OPEN_LONG_B") || direction.equals("OPEN_SHORT_B");
 		return new StatArbSignalRecord(
 			"BTCUSDT",
 			"ETHUSDT",
+			new BigDecimal("0"),
+			new BigDecimal("0"),
 			zScore,
 			direction,
-			triggered,
 			LocalDateTime.now()
 		);
 	}
 
 	private StatArbSignalRecord signalOf(String symbolA, String symbolB,
 		String direction, double zScore) {
-		boolean triggered = direction.equals("OPEN_LONG_B") || direction.equals("OPEN_SHORT_B");
 		return new StatArbSignalRecord(
 			symbolA,
 			symbolB,
+			new BigDecimal("0"),
+			new BigDecimal("0"),
 			zScore,
 			direction,
-			triggered,
 			LocalDateTime.now()
 		);
 	}
@@ -85,7 +91,8 @@ class StatArbSchedulerTest {
 	//用指定 props 建立 Scheduler
 	private StatArbScheduler schedulerWith(StatArbProperties p) {
 		return new StatArbScheduler(
-			statArbUseCase, persistencePort, alertPublisher, p, new SimpleMeterRegistry()
+			statArbUseCase, persistencePort, alertPublisher, p, new SimpleMeterRegistry(),
+			signalAlertPersistencePort
 		);
 	}
 
@@ -161,7 +168,7 @@ class StatArbSchedulerTest {
 		Mockito.clearInvocations(alertPublisher);
 
 		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
-			.thenReturn(signalOf("HOLD", 0.3));
+			.thenReturn(signalOf("CLOSE", 0.3));
 		scheduler.calculateAndPublish();
 
 		ArgumentCaptor<SignalAlertPayload> captor =
@@ -181,7 +188,7 @@ class StatArbSchedulerTest {
 		Mockito.clearInvocations(alertPublisher);
 
 		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
-			.thenReturn(signalOf("HOLD", -0.3));
+			.thenReturn(signalOf("CLOSE", -0.3));
 		scheduler.calculateAndPublish();
 
 		ArgumentCaptor<SignalAlertPayload> captor =
@@ -259,8 +266,8 @@ class StatArbSchedulerTest {
 	@Test
 	void multiplePairs_allSignalsSavedAndPublished() {
 		StatArbProperties twoProps = new StatArbProperties(List.of(
-			new StatArbProperties.PairConfig("BTCUSDT", "ETHUSDT", 2.0, 0.5, 30),
-			new StatArbProperties.PairConfig("SOLUSDT", "BTCUSDT", 2.0, 0.5, 30)
+			new StatArbProperties.PairConfig("BTCUSDT", "ETHUSDT", 2.0, 0.5, 3.5, 30),
+			new StatArbProperties.PairConfig("SOLUSDT", "BTCUSDT", 2.0, 0.5, 3.5, 30)
 		));
 		StatArbScheduler twoPropsScheduler = schedulerWith(twoProps);
 
@@ -279,13 +286,14 @@ class StatArbSchedulerTest {
 	@Test
 	void whenOnePairThrowsException_otherPairStillProcessed() {
 		StatArbProperties twoProps = new StatArbProperties(List.of(
-			new StatArbProperties.PairConfig("BTCUSDT", "ETHUSDT", 2.0, 0.5, 30),
-			new StatArbProperties.PairConfig("SOLUSDT", "BTCUSDT", 2.0, 0.5, 30)
+			new StatArbProperties.PairConfig("BTCUSDT", "ETHUSDT", 2.0, 0.5, 3.5, 30),
+			new StatArbProperties.PairConfig("SOLUSDT", "BTCUSDT", 2.0, 0.5, 3.5, 30)
 		));
 		StatArbScheduler twoPropsScheduler = schedulerWith(twoProps);
 
 		when(statArbUseCase.calculate(eq("BTCUSDT"), eq("ETHUSDT"), any()))
-			.thenThrow(new RuntimeException("OnePairThrowsException_otherPairStillProcessed"));
+			.thenThrow(new RuntimeException("[Test Error Msg]" +
+				"OnePairThrowsException_otherPairStillProcessed"));
 		when(statArbUseCase.calculate(eq("SOLUSDT"), eq("BTCUSDT"), any()))
 			.thenReturn(signalOf("SOLUSDT", "BTCUSDT", "OPEN_LONG_B", 2.3));
 
@@ -306,8 +314,8 @@ class StatArbSchedulerTest {
 	@Test
 	void multiplePairs_edgeTriggerStateIsIndependentPerPair() {
 		StatArbProperties twoProps = new StatArbProperties(List.of(
-			new StatArbProperties.PairConfig("BTCUSDT", "ETHUSDT", 2.0, 0.5, 30),
-			new StatArbProperties.PairConfig("SOLUSDT", "BTCUSDT", 2.0, 0.5, 30)
+			new StatArbProperties.PairConfig("BTCUSDT", "ETHUSDT", 2.0, 0.5, 3.5, 30),
+			new StatArbProperties.PairConfig("SOLUSDT", "BTCUSDT", 2.0, 0.5, 3.5, 30)
 		));
 		StatArbScheduler twoScheduler = schedulerWith(twoProps);
 
@@ -419,5 +427,97 @@ class StatArbSchedulerTest {
 			.gauge().value())
 			.as("成功執行 → consecutiveSkips.set(0) ，Gauge 應為 0")
 			.isEqualTo(0.0);
+	}
+
+	// Hold 時不推播 EXIT，signalAlertPersistencePort 不應被呼叫
+	@Test
+	void openLongB_toHold_doesNotPublishExitAndDoesNotSaveAlert() {
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("OPEN_LONG_B", 2.5));
+		scheduler.calculateAndPublish();           // 建立多頭持倉
+		Mockito.clearInvocations(alertPublisher, signalAlertPersistencePort);
+
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("HOLD", 1.0));    // Z-Score 回到正常範圍，但尚未EXIT
+		scheduler.calculateAndPublish();
+
+		ArgumentCaptor<SignalAlertPayload> captor =
+			ArgumentCaptor.forClass(SignalAlertPayload.class);
+		verify(alertPublisher).publish(captor.capture());
+
+		assertThat(captor.getValue().alertType()).isEqualTo(AlertType.NONE);
+		verify(signalAlertPersistencePort, never()).save(any());
+	}
+
+	// ENTRY 觸發時，signalAlertPersistencePort.save() 必須被呼叫一次
+	@Test
+	void onEntry_signalAlertIsSaved() {
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("OPEN_LONG_B", 2.5));
+
+		scheduler.calculateAndPublish();
+
+		ArgumentCaptor<SignalAlertRecord> captor =
+			ArgumentCaptor.forClass(SignalAlertRecord.class);
+		verify(signalAlertPersistencePort).save(captor.capture());
+
+		assertThat(captor.getValue().strategy()).isEqualTo("STAT_ARB");
+		assertThat(captor.getValue().direction()).isEqualTo("OPEN_LONG_B");
+		assertThat(captor.getValue().alertType()).isEqualTo("ENTRY");
+	}
+
+	// NONE 時不寫入 signal_alert
+	@Test
+	void onNone_signalAlertIsNotSaved() {
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("HOLD", 0.5));
+
+		scheduler.calculateAndPublish();
+
+		verify(signalAlertPersistencePort, never()).save(any());
+	}
+
+	// EXIT 觸發時，signalAlertPersistencePort.save() 必須被呼叫一次，且 direction 是平倉前的持倉方向
+	@Test
+	void onExit_signalAlertIsSavedWithCorrectDirection() {
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("OPEN_LONG_B", 2.5));
+		scheduler.calculateAndPublish();
+		Mockito.clearInvocations(signalAlertPersistencePort);
+
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("CLOSE", 0.2));
+		scheduler.calculateAndPublish();
+
+		ArgumentCaptor<SignalAlertRecord> captor =
+			ArgumentCaptor.forClass(SignalAlertRecord.class);
+		verify(signalAlertPersistencePort).save(captor.capture());
+
+		assertThat(captor.getValue().alertType()).isEqualTo("EXIT");
+		// direction 應是平倉前的持倉方向 OPEN_LONG_B，不是 CLOSE
+		assertThat(captor.getValue().direction()).isEqualTo("OPEN_LONG_B");
+	}
+
+	// 直翻時雙寫兩次（EXIT 舊方向 + ENTRY 新方向），且順序正確
+	@Test
+	void onDirectFlip_signalAlertSavedTwiceInOrder() {
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("OPEN_LONG_B", 2.5));
+		scheduler.calculateAndPublish();
+		Mockito.clearInvocations(signalAlertPersistencePort);
+
+		when(statArbUseCase.calculate(any(), any(), any(StatArbParams.class)))
+			.thenReturn(signalOf("OPEN_SHORT_B", -2.5));
+		scheduler.calculateAndPublish();
+
+		ArgumentCaptor<SignalAlertRecord> captor =
+			ArgumentCaptor.forClass(SignalAlertRecord.class);
+		verify(signalAlertPersistencePort, times(2)).save(captor.capture());
+
+		List<SignalAlertRecord> saved = captor.getAllValues();
+		assertThat(saved.get(0).alertType()).isEqualTo("EXIT");
+		assertThat(saved.get(0).direction()).isEqualTo("OPEN_LONG_B");
+		assertThat(saved.get(1).alertType()).isEqualTo("ENTRY");
+		assertThat(saved.get(1).direction()).isEqualTo("OPEN_SHORT_B");
 	}
 }

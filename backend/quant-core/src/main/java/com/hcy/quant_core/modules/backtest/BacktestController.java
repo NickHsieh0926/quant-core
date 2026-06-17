@@ -6,12 +6,14 @@ import com.hcy.quant_core.infrastructure.web.response.JobStatusResponse;
 import com.hcy.quant_core.modules.backtest.model.PerformanceRecord;
 import com.hcy.quant_core.modules.backtest.model.dto.BacktestRequest;
 import com.hcy.quant_core.modules.backtest.port.IBacktestUseCase;
+import com.hcy.quant_core.modules.backtest.port.ISignalReplayUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/backtest")
@@ -20,9 +22,12 @@ public class BacktestController {
 	private static final DebugTrace TRACE = new DebugTrace(LOGGER, LOGGER.isDebugEnabled());
 
 	private final IBacktestUseCase backtestUseCase;
+	private final ISignalReplayUseCase signalReplayUseCase;
 
-	public BacktestController(IBacktestUseCase backtestUseCase) {
+	public BacktestController(IBacktestUseCase backtestUseCase,
+		ISignalReplayUseCase signalReplayUseCase) {
 		this.backtestUseCase = backtestUseCase;
+		this.signalReplayUseCase = signalReplayUseCase;
 	}
 
 	@PostMapping("/run")
@@ -50,5 +55,12 @@ public class BacktestController {
 		LOGGER.info("Get Backtest History Request");
 		List<PerformanceRecord> result = backtestUseCase.getHistory();
 		return ApiResponse.ok(result);
+	}
+
+	@PostMapping("/replay")
+	public ResponseEntity<ApiResponse<Map<String, PerformanceRecord>>> replay(
+		@RequestParam(required = false) String strategy) {
+		Map<String, PerformanceRecord> replay = signalReplayUseCase.replay(strategy);
+		return ResponseEntity.accepted().body(ApiResponse.ok(replay));
 	}
 }

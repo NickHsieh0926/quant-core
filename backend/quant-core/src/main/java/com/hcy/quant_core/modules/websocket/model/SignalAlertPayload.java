@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 public record SignalAlertPayload(
 	String type,
+	String symbolPair,
 	SignalDirection direction,
 	double score,
 	AlertType alertType,

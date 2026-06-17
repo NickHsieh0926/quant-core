@@ -10,6 +10,6 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({
 	MarketDataProperties.class,
 	StatArbProperties.class,
-	OnChainProperties.class
+	OnChainProperties.class,
 })
 public class PropertiesConfig {}

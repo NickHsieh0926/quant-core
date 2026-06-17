@@ -14,6 +14,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+
 @Configuration
 public class OnChainIngestionJobConfig {
 
@@ -24,9 +26,19 @@ public class OnChainIngestionJobConfig {
 	}
 
 	@Bean
+	@StepScope
+	public ExchangeFlowItemReader exchangeFlowItemReader() {
+		return new ExchangeFlowItemReader();
+	}
+
+	@Bean
+	@StepScope
 	public OnChainItemProcessor onChainItemProcessor(
-		OnChainMetricsPersistencePort persistencePort) {
-		return new OnChainItemProcessor(persistencePort);
+		OnChainMetricsPersistencePort persistencePort,
+		ExchangeFlowItemReader exchangeFlowItemReader) throws Exception {
+
+		BigDecimal flow = exchangeFlowItemReader.read();
+		return new OnChainItemProcessor(persistencePort, flow);
 	}
 
 	@Bean

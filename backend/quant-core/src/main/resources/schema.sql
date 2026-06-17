@@ -219,21 +219,77 @@ COMMENT ON COLUMN on_chain_metrics.created_at        IS '入庫時間';
 
 -- 統計套利分析紀錄
 CREATE TABLE IF NOT EXISTS stat_arb_signal (
-    id          BIGSERIAL PRIMARY KEY,
-    symbol_a    VARCHAR(20)     NOT NULL,
-    symbol_b    VARCHAR(20)     NOT NULL,
-    z_score     DECIMAL(10, 4)  NOT NULL,
-    direction   VARCHAR(20)     NOT NULL,
-    triggered   BOOLEAN         NOT NULL,
-    signal_at   TIMESTAMP       NOT NULL,
-    created_at  TIMESTAMP DEFAULT NOW()
+    id              BIGSERIAL PRIMARY KEY,
+    symbol_a        VARCHAR(20)     NOT NULL,
+    symbol_b        VARCHAR(20)     NOT NULL,
+    symbol_a_price  DECIMAL(20, 8)  NOT NULL,
+    symbol_b_price  DECIMAL(20, 8)  NOT NULL,
+    z_score         DECIMAL(10, 4)  NOT NULL,
+    direction       VARCHAR(20)     NOT NULL,
+    signal_at       TIMESTAMP       NOT NULL,
+    created_at      TIMESTAMP DEFAULT NOW()
 );
 
 COMMENT ON TABLE stat_arb_signal IS '統計套利信號記錄';
-COMMENT ON COLUMN stat_arb_signal.id         IS '主鍵';
-COMMENT ON COLUMN stat_arb_signal.symbol_a   IS '交易對 A';
-COMMENT ON COLUMN stat_arb_signal.symbol_b   IS '交易對 B';
-COMMENT ON COLUMN stat_arb_signal.z_score    IS '觸發時的 Z-Score';
-COMMENT ON COLUMN stat_arb_signal.direction  IS '信號方向（OPEN_LONG / OPEN_SHORT / CLOSE / HOLD）';
-COMMENT ON COLUMN stat_arb_signal.triggered  IS '是否觸發進場閾值';
-COMMENT ON COLUMN stat_arb_signal.signal_at  IS '信號產生時間';
+COMMENT ON COLUMN stat_arb_signal.id                IS '主鍵';
+COMMENT ON COLUMN stat_arb_signal.symbol_a          IS '交易對 A';
+COMMENT ON COLUMN stat_arb_signal.symbol_b          IS '交易對 B';
+COMMENT ON COLUMN stat_arb_signal.symbol_a_price    IS '觸發時 SymbolA 的 close price';
+COMMENT ON COLUMN stat_arb_signal.symbol_b_price    IS '觸發時 SymbolB 的 close price';
+COMMENT ON COLUMN stat_arb_signal.z_score           IS '觸發時的 Z-Score';
+COMMENT ON COLUMN stat_arb_signal.direction         IS '信號方向（OPEN_LONG / OPEN_SHORT / CLOSE / HOLD）';
+COMMENT ON COLUMN stat_arb_signal.signal_at         IS '信號產生時間';
+
+CREATE TABLE IF NOT EXISTS signal_alert (
+    id              BIGSERIAL    PRIMARY KEY,
+    strategy        VARCHAR(20)  NOT NULL,
+    direction       VARCHAR(20)  NOT NULL,
+    alert_type      VARCHAR(10)  NOT NULL,
+    symbol_a        VARCHAR(20)  NOT NULL,
+    symbol_b        VARCHAR(20),
+    symbol_a_price  DECIMAL(20, 8)  NOT NULL,
+    symbol_b_price  DECIMAL(20, 8),
+    signal_at       TIMESTAMP  NOT NULL,
+    CONSTRAINT chk_alert_type CHECK (alert_type IN ('ENTRY', 'EXIT'))
+    );
+CREATE INDEX IF NOT EXISTS idx_signal_alert_strategy_at
+    ON signal_alert (strategy, signal_at);
+
+COMMENT ON TABLE  signal_alert                IS '信號告警表：記錄所有策略的 ENTRY/EXIT 事件';
+COMMENT ON COLUMN signal_alert.strategy       IS '策略識別碼：STAT_ARB/ ON_CHAIN...';
+COMMENT ON COLUMN signal_alert.direction      IS '信號方向：OPEN_LONG_B / OPEN_SHORT_B / BULLISH / BEARISH ...';
+COMMENT ON COLUMN signal_alert.alert_type     IS '事件類型：ENTRY（開倉）/ EXIT（平倉）';
+COMMENT ON COLUMN signal_alert.symbol_a       IS '主交易對代碼（統計套利為 BTCUSDT，鏈上信號亦為 BTCUSDT）';
+COMMENT ON COLUMN signal_alert.symbol_b       IS '配對交易對代碼（統計套利為 ETHUSDT）；單邊策略為 null';
+COMMENT ON COLUMN signal_alert.symbol_a_price IS '發出當下 symbolA 即時報價，用於 Signal Replay PnL 計算';
+COMMENT ON COLUMN signal_alert.symbol_b_price IS '發出當下 symbolB 即時報價；單邊策略（ON_CHAIN）為 null';
+COMMENT ON COLUMN signal_alert.signal_at      IS '信號產生時間';
+
+-- 鏈上信號評估結果表
+CREATE TABLE IF NOT EXISTS on_chain_signal (
+    id               BIGSERIAL    PRIMARY KEY,
+    signal_at        TIMESTAMP  NOT NULL,
+    fear_greed_index INT,
+    fear_greed_label VARCHAR(30),
+    composite_score  INT,
+    direction        VARCHAR(20),
+    triggered        BOOLEAN,
+    source           VARCHAR(20),
+    symbol_a_price   DECIMAL(20, 8),
+    summary          TEXT,
+    created_at       TIMESTAMP DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_on_chain_signal_at
+    ON on_chain_signal (signal_at DESC);
+
+COMMENT ON TABLE  on_chain_signal                  IS '鏈上信號評估結果';
+COMMENT ON COLUMN on_chain_signal.signal_at        IS '信號評估時間';
+COMMENT ON COLUMN on_chain_signal.fear_greed_index IS '貪婪恐懼指數（0-100）：<25 極度恐懼（歷史底部特徵），>80 極度貪婪（歷史高點特徵）';
+COMMENT ON COLUMN on_chain_signal.fear_greed_label IS 'API 回傳文字分類：Extreme Fear / Fear / Neutral / Greed / Extreme Greed';
+COMMENT ON COLUMN on_chain_signal.composite_score  IS '綜合評分（0-100）';
+COMMENT ON COLUMN on_chain_signal.direction        IS '方向判斷：BULLISH / BEARISH / NEUTRAL';
+COMMENT ON COLUMN on_chain_signal.triggered        IS '是否觸發推播（true = 狀態機發生轉換並推播）';
+COMMENT ON COLUMN on_chain_signal.source           IS '信號來源：RULE_BASED / AI_GENERATED';
+COMMENT ON COLUMN on_chain_signal.symbol_a_price   IS '信號評估當下的 BTC 即時報價（從 Redis 讀取），用於 Signal Replay PnL 計算';
+COMMENT ON COLUMN on_chain_signal.summary          IS '信號說明文字：RULE_BASED 為格式化字串，AI_GENERATED 為 LLM 生成的自然語言說明';
+COMMENT ON COLUMN on_chain_signal.created_at       IS '入庫時間；與 signal_at 的時差可反映 Scheduler 處理延遲';

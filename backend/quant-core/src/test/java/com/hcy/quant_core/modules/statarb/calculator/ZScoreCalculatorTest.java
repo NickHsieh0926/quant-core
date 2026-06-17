@@ -72,7 +72,7 @@ public class ZScoreCalculatorTest {
 	void calculate_withHighSpreadDeviation() {
 		// 過去 4 天價差穩定在 10，最後一天突然跳到 20（偏離 2 個標準差以上）
 		List<BigDecimal> pricesA = List.of(
-			bd("110"), bd("110"), bd("110"), bd("110"), bd("110"), bd("120"));
+			bd("120"), bd("110"), bd("110"), bd("110"), bd("110"), bd("110"));
 		List<BigDecimal> pricesB = List.of(
 			bd("100"), bd("100"), bd("100"), bd("100"), bd("100"), bd("100"));
 

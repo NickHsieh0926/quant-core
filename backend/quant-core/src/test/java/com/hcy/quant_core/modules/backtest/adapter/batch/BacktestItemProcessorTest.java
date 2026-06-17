@@ -4,7 +4,7 @@ import com.hcy.quant_core.modules.backtest.model.OhlcvPair;
 import com.hcy.quant_core.modules.backtest.model.TradeResult;
 import com.hcy.quant_core.modules.marketdata.model.OhlcvRecord;
 import com.hcy.quant_core.modules.statarb.calculator.ZScoreCalculator;
-import com.hcy.quant_core.modules.statarb.strategy.MeanReversionStrategy;
+import com.hcy.quant_core.modules.strategy.MeanReversionStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,9 +37,9 @@ public class BacktestItemProcessorTest {
 	@Test
 	void process_whenZScoreExceedsEntry_returnsOpenSignal() throws Exception {
 		List<OhlcvPair> pairs = List.of(
+			makePair("120", "100"), makePair("110", "100"),
 			makePair("110", "100"), makePair("110", "100"),
-			makePair("110", "100"), makePair("110", "100"),
-			makePair("110", "100"), makePair("120", "100")
+			makePair("110", "100"), makePair("110", "100")
 		);
 		TradeResult result = null;
 		for (OhlcvPair p : pairs) {
